@@ -1,4 +1,4 @@
-/*
+
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
@@ -20,6 +20,8 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const birdsRenderer = new THREE.WebGLRenderer(); 
 birdsRenderer.setSize( window.innerWidth/5, window.innerHeight/5 );
 birdsRenderer.setClearColor( 0xeeeeee );
+birdsRenderer.domElement.style.bottom = 0;
+birdsRenderer.domElement.style.position = 'absolute';
 document.body.appendChild( birdsRenderer.domElement );
 birdsRenderer.shadowMap.enabled = true;
 birdsRenderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -32,12 +34,21 @@ camera.position.set( 10, 10, 10 );
 const cameraDistance = 20; // for third person view
 const firstPersonDistance = 0.3;
 
+// birds eye view camera
+const birdsCamera = new THREE.PerspectiveCamera( 45, 
+	window.innerWidth / window.innerHeight, 
+	0.1, 1000 ); 
+birdsCamera.position.set( 10, 10, 10 );
+
 // scene
 const scene = new THREE.Scene();
 
 // orbit controller
 var controls = new OrbitControls( camera, renderer.domElement );
 controls.addEventListener( 'change', function() { renderer.render(scene, camera); } );
+
+var birdsControls = new OrbitControls( birdsCamera, renderer.domElement );
+birdsControls.addEventListener( 'change', function() { renderer.render(scene, birdsCamera); } );
 
 // axes helper
 scene.add(new THREE.AxesHelper(500));
@@ -95,10 +106,19 @@ loader.load(carPlayerPath, function ( gltf ) {
 	console.error( error );
 });
 
+var startTime = new Date().getTime();
+
+// setting up game
+const gameParams = {
+	score: 0,
+	timeElapsed: 0,
+	isPaused: true,
+}
+
 // setting up car controls
 const carPlayerControls = {
 	carAngle: 0.0,
-	rotationQuantum: 0.0035,
+	rotationQuantum: 0.0012,
 	carSpeed: 0.0,
 	carAcceleration: 0.0,
 	forwardAcceleration: 0.00004,
@@ -108,7 +128,11 @@ const carPlayerControls = {
 	turnRight: false,
 	isAcce: false,
 	isBraking: false,
-	frictionAcce: 0.000003,
+	frictionAcce: 0.00001,
+	turningAcce: 0.000002,
+	carHealth: 100,
+	carFuel: 100,
+	fuelUseRate: 0.001,
 }
 
 // initially start off in third person view
@@ -116,6 +140,15 @@ let isThirdPersonView = true;
 
 // setting up initial camera position
 controls.target = new THREE.Vector3(carPlayerModel.position.x, carPlayerModel.position.y, carPlayerModel.position.z);
+
+// birds controls
+const birdsEyeHeight = 50;
+birdsCamera.position.set( carPlayerModel.position.x,
+	carPlayerModel.position.y + birdsEyeHeight,
+	carPlayerModel.position.z);
+birdsControls.target = new THREE.Vector3(carPlayerModel.position.x, 
+	carPlayerModel.position.y,
+	carPlayerModel.position.z);
 
 // updating camera position
 const updateCamera = (timeInterval) => {
@@ -134,24 +167,33 @@ const updateCamera = (timeInterval) => {
 				carPlayerModel.position.y + 1,
 				carPlayerModel.position.z + cameraDistance*Math.cos(carPlayerControls.carAngle));
 	}
+
+	// for birds eye view
+	birdsCamera.position.set( carPlayerModel.position.x,
+		carPlayerModel.position.y + birdsEyeHeight,
+		carPlayerModel.position.z);
+	birdsControls.target = new THREE.Vector3(carPlayerModel.position.x, 
+		carPlayerModel.position.y,
+		carPlayerModel.position.z);
 }
 
 // car movement
 const carPlayerTurn = (timeInterval) => {
 	if (carPlayerControls.turnLeft){
+		carPlayerControls.carSpeed -= timeInterval*carPlayerControls.turningAcce;
 		carPlayerModel.rotateY(timeInterval*carPlayerControls.rotationQuantum);
 			carPlayerControls.carAngle += timeInterval*carPlayerControls.rotationQuantum;
-			carPlayerControls.turnLeft = false;
 	}
 
 	if (carPlayerControls.turnRight){
+		carPlayerControls.carSpeed -= timeInterval*carPlayerControls.turningAcce;
 		carPlayerModel.rotateY(-timeInterval*carPlayerControls.rotationQuantum);
 		carPlayerControls.carAngle += -timeInterval*carPlayerControls.rotationQuantum;
-		carPlayerControls.turnRight = false;
 	}
 }
 
 const carPlayerMove = (timeInterval) => {
+	gameParams.score += timeInterval*carPlayerControls.carSpeed/10;
 	carPlayerModel.position.set(carPlayerModel.position.x + timeInterval*carPlayerControls.carSpeed*Math.sin(carPlayerControls.carAngle),
 	carPlayerModel.position.y,
 	carPlayerModel.position.z + timeInterval*carPlayerControls.carSpeed*Math.cos(carPlayerControls.carAngle));
@@ -170,8 +212,11 @@ const carPlayerMove = (timeInterval) => {
 
 const carPlayerAcce = (timeInterval) => {
 	if (carPlayerControls.isAcce){
+		// decreasing car speed
+		carPlayerControls.carFuel -= timeInterval*carPlayerControls.fuelUseRate;
+
+		// accelerating
 		carPlayerControls.carSpeed += timeInterval*carPlayerControls.forwardAcceleration;
-		carPlayerControls.isAcce = false;
 
 		if (carPlayerControls.carSpeed > carPlayerControls.maxSpeed){
 			carPlayerControls.carSpeed = carPlayerControls.maxSpeed;
@@ -180,17 +225,11 @@ const carPlayerAcce = (timeInterval) => {
 
 	if (carPlayerControls.isBraking){
 		carPlayerControls.carSpeed -= timeInterval*carPlayerControls.forwardAcceleration;
-		carPlayerControls.isBraking = false;
 
 		if (carPlayerControls.carSpeed < carPlayerControls.minSpeed){
 			carPlayerControls.carSpeed = carPlayerControls.minSpeed;
 		}
 	}
-}
-
-// somethings for game
-const gameConfig = {
-	isPaused: true,
 }
 
 // event listeners
@@ -199,29 +238,35 @@ document.addEventListener("contextmenu", (event) => {
 	console.log(camera.position);
 });
 
+var dashboardText = document.createElement('div');
+dashboardText.style.position = 'absolute';
+dashboardText.style.zIndex = 1;
+dashboardText.style.width = 300;
+dashboardText.style.height = 200;
+dashboardText.style.top = 10 + 'px';
+dashboardText.style.left = 10 + 'px';
+document.body.appendChild(dashboardText);
+
 // showing game controls
-const renderControls = () => {
-	var text2 = document.createElement('div');
-	text2.style.position = 'absolute';
-	text2.style.zIndex = 1;
-	text2.style.width = 100;
-	text2.style.height = 100;
-	text2.innerHTML = `Controls`;
-	text2.style.top = 10 + 'px';
-	text2.style.right = 10 + 'px';
-	document.body.appendChild(text2);
+const renderDashboard = () => {
+	dashboardText.innerHTML = 
+	`<div>
+		<p>Health: ${carPlayerControls.carHealth}</p>
+		<p>Score: ${Math.round(gameParams.score)}</p>
+		<p>Fuel: ${carPlayerControls.carFuel}</p>
+		<p>Time Elapsed: ${Math.round(gameParams.timeElapsed/1000)}</p>
+	</div>`;
 }
 
 // key pressed
 let keysPressed = {};
 document.addEventListener("keydown", (event) => {
-	// console.log(`Key down: ${event.key}`);
 
 	keysPressed[event.key] = true;
 
 	// pausing game
 	if (keysPressed[' ']){
-		gameConfig.isPaused = !gameConfig.isPaused;
+		gameParams.isPaused = !gameParams.isPaused;
 	}
 
 	// forward acceleration
@@ -255,6 +300,22 @@ document.addEventListener("keydown", (event) => {
 document.addEventListener("keyup", (event) => {
 	// console.log(`Key up: ${event.key}`);
 	delete keysPressed[event.key];
+
+	if (event.key === 'w'){
+		carPlayerControls.isAcce = false;
+	}
+
+	if (event.key === 'w'){
+		carPlayerControls.isBraking = false;
+	}
+
+	if (event.key === 'a'){
+		carPlayerControls.turnLeft = false;
+	}
+
+	if (event.key === 'd'){
+		carPlayerControls.turnRight = false;
+	}
 });
 
 var lastTime = new Date().getTime();
@@ -264,29 +325,32 @@ requestAnimationFrame(render);
 function render() {
     // Update camera position based on the controls
     controls.update();
+	birdsControls.update()
 
     // Re-render the scene
     renderer.render(scene, camera);
 
-	// displaying controls
-	renderControls();
+	// displaying dashboard
+	renderDashboard();
 
 	// chrono
 	const newTime = new Date().getTime();
 	const timeInterval = newTime - lastTime;
 	lastTime = newTime;
 
-	if (!gameConfig.isPaused){
+	if (!gameParams.isPaused){
 		// moving car
 		carPlayerTurn(timeInterval);
 		carPlayerAcce(timeInterval)
 		carPlayerMove(timeInterval);
+
+		// updating elapsed time
+		gameParams.timeElapsed += timeInterval;
 	}
 
 	// birds eye view
-	birdsRenderer.render(scene, camera);
+	birdsRenderer.render(scene, birdsCamera);
 
     // Loop
     requestAnimationFrame(render);
 }
-*/
