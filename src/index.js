@@ -7,6 +7,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 const loader = new GLTFLoader();
 const carPlayerPath = '../car-old-school.glb';
 const raceTrackPath = '../race-track-new.glb';
+const fuelTankPath = '../fuel-drum.glb';
 
 // render
 const renderer = new THREE.WebGLRenderer(); 
@@ -70,6 +71,69 @@ sunLight.shadow.mapSize.width = 1024*4;
 sunLight.shadow.mapSize.height = 1024*4;
 scene.add( sunLight );
 
+
+// setting up game
+const gameParams = {
+	score: 0,
+	timeElapsed: 0,
+	isPaused: true,
+	isOver: false,
+	isDead: false,
+	roadWidth: 30.0,
+	lapOverPoint: new THREE.Vector3(15, 0, 0),
+	lapPivotPoint: new THREE.Vector3(-120, 0, -120),
+	lapsOver: 0,
+	lapsBool: false,
+}
+
+// setting up car controls
+const carPlayerControls = {
+	carAngle: 0.0,
+	rotationQuantum: 0.0012,
+	carSpeed: 0.0,
+	carAcceleration: 0.0,
+	forwardAcceleration: 0.00004,
+	maxSpeed : 0.04,
+	minSpeed : 0.00,
+	turnLeft: false,
+	turnRight: false,
+	isAcce: false,
+	isBraking: false,
+	frictionAcce: 0.00001,
+	turningAcce: 0.000002,
+	carHealth: 100,
+	carFuel: 100,
+	fuelUseRate: 0.001,
+	fuelUsed: 0,
+	distanceCovered: 0,
+}
+
+// variables for fuel tanks
+const fuelParams = {
+	fuelIncrease: 7,
+	numFuels: 4,
+	fuelPositions: [
+		new THREE.Vector3(15, 0, -70),
+		new THREE.Vector3(-120, 0, -95),
+		new THREE.Vector3(-30, 0, -240),
+		new THREE.Vector3(70, 0, -180),
+	],
+	fuelModels: [
+		null,
+		null,
+		null,
+		null,
+	],
+	isTaken: [
+		false,
+		false,
+		false,
+		false,
+	],
+	positionBias: 13,
+}
+
+
 // loading racetrack pack
 var raceTrackModel = new THREE.Object3D();;
 loader.load(raceTrackPath, function ( gltf ) {
@@ -106,38 +170,35 @@ loader.load(carPlayerPath, function ( gltf ) {
 	console.error( error );
 });
 
-var startTime = new Date().getTime();
+// loading fuel tank
+var fuelTankModel = new THREE.Object3D();;
+loader.load(fuelTankPath, function ( gltf ) {
+	fuelTankModel = gltf.scene;
 
-// setting up game
-const gameParams = {
-	score: 0,
-	timeElapsed: 0,
-	isPaused: true,
-	isOver: false,
-	isDead: false,
-}
+	fuelTankModel.position.set(0, 0, 10);
+	fuelTankModel.scale.set(1.5, 1.5, 1.5);
+	fuelTankModel.traverse(n => { if ( n.isMesh ) {
+		n.castShadow = true; 
+		n.receiveShadow = true;
+		if(n.material.map) n.material.map.anisotropy = 16; 
+	  }});
 
-// setting up car controls
-const carPlayerControls = {
-	carAngle: 0.0,
-	rotationQuantum: 0.0012,
-	carSpeed: 0.0,
-	carAcceleration: 0.0,
-	forwardAcceleration: 0.00004,
-	maxSpeed : 0.04,
-	minSpeed : 0.00,
-	turnLeft: false,
-	turnRight: false,
-	isAcce: false,
-	isBraking: false,
-	frictionAcce: 0.00001,
-	turningAcce: 0.000002,
-	carHealth: 100,
-	carFuel: 100,
-	fuelUseRate: 0.001,
-	fuelUsed: 0,
-	distanceCovered: 0,
-}
+	for (let i = 0; i<fuelParams.numFuels; i++){
+		var curFuel = fuelTankModel.clone();
+
+		curFuel.position.set(
+			fuelParams.fuelPositions[i].x + Math.random()*fuelParams.positionBias,
+			fuelParams.fuelPositions[i].y,
+			fuelParams.fuelPositions[i].z + Math.random()*fuelParams.positionBias
+		);
+
+		scene.add(curFuel);
+
+		fuelParams.fuelModels[i] = curFuel;
+	}
+}, undefined, function ( error ) {
+	console.error( error );
+});
 
 // initially start off in third person view
 let isThirdPersonView = true;
@@ -184,13 +245,27 @@ const updateCamera = (timeInterval) => {
 // car movement
 const carPlayerTurn = (timeInterval) => {
 	if (carPlayerControls.turnLeft){
-		carPlayerControls.carSpeed -= timeInterval*carPlayerControls.turningAcce;
+		if (carPlayerControls.carSpeed > 0){
+			carPlayerControls.carSpeed -= timeInterval*carPlayerControls.turningAcce;
+	
+			if (carPlayerControls.carSpeed < 0){
+				carPlayerControls.carSpeed = 0.0;
+			}
+		}
+
 		carPlayerModel.rotateY(timeInterval*carPlayerControls.rotationQuantum);
 			carPlayerControls.carAngle += timeInterval*carPlayerControls.rotationQuantum;
 	}
 
 	if (carPlayerControls.turnRight){
-		carPlayerControls.carSpeed -= timeInterval*carPlayerControls.turningAcce;
+		if (carPlayerControls.carSpeed > 0){
+			carPlayerControls.carSpeed -= timeInterval*carPlayerControls.turningAcce;
+	
+			if (carPlayerControls.carSpeed < 0){
+				carPlayerControls.carSpeed = 0.0;
+			}
+		}
+
 		carPlayerModel.rotateY(-timeInterval*carPlayerControls.rotationQuantum);
 		carPlayerControls.carAngle += -timeInterval*carPlayerControls.rotationQuantum;
 	}
@@ -243,17 +318,64 @@ const carPlayerAcce = (timeInterval) => {
 	}
 }
 
+const renderFuels = () => {
+	for (let i = 0; i<fuelParams.numFuels; i++){
+		if (fuelParams.isTaken[i]){
+			fuelParams.fuelModels[i].position.set(
+				fuelParams.fuelPositions[i].x + Math.random()*fuelParams.positionBias,
+				fuelParams.fuelPositions[i].y,
+				fuelParams.fuelPositions[i].z + Math.random()*fuelParams.positionBias
+			);
+	
+			scene.add(fuelParams.fuelModels[i]);
+
+			fuelParams.isTaken[i] = false;
+			console.log(`Recreated fuel ${i}`);
+		}
+	}
+}
+
+const lapChangeCallback = () => {
+	renderFuels();
+}
+
+const checkLaps = () => {
+	if (carPlayerModel.position.distanceTo(gameParams.lapOverPoint) < 20 && gameParams.lapsBool){
+		gameParams.lapsOver++;
+		gameParams.lapsBool = false;
+		lapChangeCallback();
+	}
+
+	if (carPlayerModel.position.distanceTo(gameParams.lapPivotPoint) < 20){
+		gameParams.lapsBool = true;
+	}
+}
+
+const checkFuelCollision = () => {
+	const playerBoundingBox = new THREE.Box3().setFromObject(carPlayerModel);
+	for (let i = 0; i<fuelParams.numFuels; i++){
+		const fuelBoundingBox = new THREE.Box3().setFromObject(fuelParams.fuelModels[i]);
+
+		if (fuelBoundingBox.intersectsBox(playerBoundingBox) && !fuelParams.isTaken[i]){
+			console.log(`Fuel ${i} picked up.`);
+			fuelParams.isTaken[i] = true;
+			scene.remove(fuelParams.fuelModels[i]);
+			carPlayerControls.carFuel += fuelParams.fuelIncrease;
+		}
+	}
+}
+
 // event listeners
 // rightclick
 document.addEventListener("contextmenu", (event) => {
-	console.log(camera.position);
+	console.log(carPlayerModel.position);
 });
 
 var dashboardText = document.createElement('div');
 dashboardText.style.position = 'absolute';
 dashboardText.style.zIndex = 1;
-dashboardText.style.width = 300;
-dashboardText.style.height = 200;
+dashboardText.style.width = '250px';
+dashboardText.style.backgroundColor = '#F0F8FF';
 dashboardText.style.top = 10 + 'px';
 dashboardText.style.left = 10 + 'px';
 document.body.appendChild(dashboardText);
@@ -276,7 +398,8 @@ const renderDashboard = () => {
 		<p>Score: ${Math.round(gameParams.score)}</p>
 		<p>Fuel: ${Math.round(carPlayerControls.carFuel)}</p>
 		<p>Time Elapsed: ${Math.round(gameParams.timeElapsed/1000)}</p>
-		<p>Mileage: ${Math.round(carPlayerControls.distanceCovered/carPlayerControls.fuelUsed)}</p>
+		<p>Mileage: ${carPlayerControls.fuelUsed > 0 ? (Math.round(carPlayerControls.distanceCovered/carPlayerControls.fuelUsed)) : 0}</p>
+		<p>Laps Covered: ${gameParams.lapsOver}</p>
 	</div>`;
 }
 
@@ -370,6 +493,8 @@ function render() {
 		carPlayerTurn(timeInterval);
 		carPlayerAcce(timeInterval)
 		carPlayerMove(timeInterval);
+		checkLaps();
+		checkFuelCollision();
 
 		// updating elapsed time
 		gameParams.timeElapsed += timeInterval;
@@ -377,6 +502,7 @@ function render() {
 
 	// birds eye view
 	birdsRenderer.render(scene, birdsCamera);
+
 
     // Loop
     requestAnimationFrame(render);
