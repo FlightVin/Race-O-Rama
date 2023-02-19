@@ -84,6 +84,51 @@ const gameParams = {
 	lapPivotPoint: new THREE.Vector3(-120, 0, -120),
 	lapsOver: 0,
 	lapsBool: false,
+	trackPoints: [
+		new THREE.Vector3(15, 0, 0),
+		new THREE.Vector3(15, 0, -30),
+		new THREE.Vector3(15, 0, -60),
+		new THREE.Vector3(15, 0, -90),
+		new THREE.Vector3(15, 0, -120),
+		new THREE.Vector3(15, 0, -150),
+		new THREE.Vector3(15, 0, 20),
+		new THREE.Vector3(-8, 0, 40),
+		new THREE.Vector3(-31, 0, 40),
+		new THREE.Vector3(-45, 0, 25),
+		new THREE.Vector3(-45, 0, 0),
+		new THREE.Vector3(-45, 0, -16),
+		new THREE.Vector3(-55, 0, -35),
+		new THREE.Vector3(-70, 0, -45),
+		new THREE.Vector3(-90, 0, -45),
+		new THREE.Vector3(-115, 0, -60),
+		new THREE.Vector3(-120, 0, -75),
+		new THREE.Vector3(-120, 0, -100),
+		new THREE.Vector3(-120, 0, -120),
+		new THREE.Vector3(-120, 0, -140),
+		new THREE.Vector3(-120, 0, -150),
+		new THREE.Vector3(-120, 0, -75),
+		new THREE.Vector3(-115, 0, -170),
+		new THREE.Vector3(-105, 0, -175),
+		new THREE.Vector3(-85, 0, -180),
+		new THREE.Vector3(-65, 0, -195),
+		new THREE.Vector3(-60, 0, -220),
+		new THREE.Vector3(-45, 0, -235),
+		new THREE.Vector3(-30, 0, -240),
+		new THREE.Vector3(0, 0, -240),
+		new THREE.Vector3(30, 0, -240),
+		new THREE.Vector3(60, 0, -240),
+		new THREE.Vector3(90, 0, -240),
+		new THREE.Vector3(110, 0, -230),
+		new THREE.Vector3(120, 0, -210),
+		new THREE.Vector3(95, 0, -180),
+		new THREE.Vector3(65, 0, -210),
+		new THREE.Vector3(35, 0, -210),
+		new THREE.Vector3(15, 0, -150),
+		new THREE.Vector3(15, 0, -120),
+		new THREE.Vector3(15, 0, -90),
+		new THREE.Vector3(15, 0, -60),
+		new THREE.Vector3(15, 0, -30),
+	]
 }
 
 // setting up car controls
@@ -102,23 +147,26 @@ const carPlayerControls = {
 	frictionAcce: 0.00001,
 	turningAcce: 0.000002,
 	carHealth: 100,
-	carFuel: 100,
+	carFuel: 30,
 	fuelUseRate: 0.001,
 	fuelUsed: 0,
 	distanceCovered: 0,
+	nextFuelDistance: 0,
 }
 
 // variables for fuel tanks
 const fuelParams = {
 	fuelIncrease: 7,
-	numFuels: 4,
+	numFuels: 5,
 	fuelPositions: [
-		new THREE.Vector3(15, 0, -70),
+		new THREE.Vector3(-5, 0, 40),
+		new THREE.Vector3(15, 0, -95),
 		new THREE.Vector3(-120, 0, -95),
 		new THREE.Vector3(-30, 0, -240),
 		new THREE.Vector3(70, 0, -180),
 	],
 	fuelModels: [
+		null,
 		null,
 		null,
 		null,
@@ -129,8 +177,17 @@ const fuelParams = {
 		false,
 		false,
 		false,
+		false,
 	],
-	positionBias: 13,
+	exitedRange:[
+		false,
+		false,
+		false,
+		false,
+		false,
+	],
+	positionBias: 10,
+	nextSwitchDist: 25,
 }
 
 
@@ -293,13 +350,37 @@ const carPlayerMove = (timeInterval) => {
 
 	// resetting camera
 	updateCamera(timeInterval);
+
+	// updating fuel tank distance
+	carPlayerControls.nextFuelDistance = Infinity;
+	for (let i = 0; i<fuelParams.numFuels; i++){
+		const curDist = fuelParams.fuelModels[i].position.distanceTo(carPlayerModel.position);
+
+		if (curDist < fuelParams.nextSwitchDist){
+			fuelParams.exitedRange[i] = true;
+		}
+
+		if (!fuelParams.exitedRange[i] && curDist < carPlayerControls.nextFuelDistance){
+			carPlayerControls.nextFuelDistance = curDist;
+		}
+	}
 }
 
 const carPlayerAcce = (timeInterval) => {
 	if (carPlayerControls.isAcce){
+
+		// checking fuel
+		if (carPlayerControls.carFuel < 0.2){
+			return;
+		}
+
 		// decreasing car fuel
 		carPlayerControls.carFuel -= timeInterval*carPlayerControls.fuelUseRate;
 		carPlayerControls.fuelUsed += timeInterval*carPlayerControls.fuelUseRate;
+
+		if (carPlayerControls.carFuel <= 0){
+			carPlayerControls.carFuel = 0;
+		}
 
 		// accelerating
 		carPlayerControls.carSpeed += timeInterval*carPlayerControls.forwardAcceleration;
@@ -320,6 +401,8 @@ const carPlayerAcce = (timeInterval) => {
 
 const renderFuels = () => {
 	for (let i = 0; i<fuelParams.numFuels; i++){
+		fuelParams.exitedRange[i] = false;
+		
 		if (fuelParams.isTaken[i]){
 			fuelParams.fuelModels[i].position.set(
 				fuelParams.fuelPositions[i].x + Math.random()*fuelParams.positionBias,
@@ -400,6 +483,7 @@ const renderDashboard = () => {
 		<p>Time Elapsed: ${Math.round(gameParams.timeElapsed/1000)}</p>
 		<p>Mileage: ${carPlayerControls.fuelUsed > 0 ? (Math.round(carPlayerControls.distanceCovered/carPlayerControls.fuelUsed)) : 0}</p>
 		<p>Laps Covered: ${gameParams.lapsOver}</p>
+		<p>Next Fuel Tank Distance : ${Math.round(carPlayerControls.nextFuelDistance)}</p>
 	</div>`;
 }
 
