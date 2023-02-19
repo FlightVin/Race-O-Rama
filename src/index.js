@@ -113,6 +113,8 @@ const gameParams = {
 	score: 0,
 	timeElapsed: 0,
 	isPaused: true,
+	isOver: false,
+	isDead: false,
 }
 
 // setting up car controls
@@ -133,6 +135,8 @@ const carPlayerControls = {
 	carHealth: 100,
 	carFuel: 100,
 	fuelUseRate: 0.001,
+	fuelUsed: 0,
+	distanceCovered: 0,
 }
 
 // initially start off in third person view
@@ -193,7 +197,13 @@ const carPlayerTurn = (timeInterval) => {
 }
 
 const carPlayerMove = (timeInterval) => {
+	// updating score
 	gameParams.score += timeInterval*carPlayerControls.carSpeed/10;
+
+	// updating distance covered
+	carPlayerControls.distanceCovered +=  timeInterval*carPlayerControls.carSpeed;
+
+	// moving car
 	carPlayerModel.position.set(carPlayerModel.position.x + timeInterval*carPlayerControls.carSpeed*Math.sin(carPlayerControls.carAngle),
 	carPlayerModel.position.y,
 	carPlayerModel.position.z + timeInterval*carPlayerControls.carSpeed*Math.cos(carPlayerControls.carAngle));
@@ -212,8 +222,9 @@ const carPlayerMove = (timeInterval) => {
 
 const carPlayerAcce = (timeInterval) => {
 	if (carPlayerControls.isAcce){
-		// decreasing car speed
+		// decreasing car fuel
 		carPlayerControls.carFuel -= timeInterval*carPlayerControls.fuelUseRate;
+		carPlayerControls.fuelUsed += timeInterval*carPlayerControls.fuelUseRate;
 
 		// accelerating
 		carPlayerControls.carSpeed += timeInterval*carPlayerControls.forwardAcceleration;
@@ -247,14 +258,25 @@ dashboardText.style.top = 10 + 'px';
 dashboardText.style.left = 10 + 'px';
 document.body.appendChild(dashboardText);
 
+var startImage = document.createElement('div');
+startImage.style.position = 'absolute';
+startImage.style.zIndex = 10;
+startImage.style.top = 0 + 'px';
+startImage.style.left = 0 + 'px';
+startImage.style.height = '100%';
+startImage.style.width = '100%';
+startImage.innerHTML = '<img src="StartImage.png" width="100%" height="100%">';
+document.body.appendChild(startImage);
+
 // showing game controls
 const renderDashboard = () => {
 	dashboardText.innerHTML = 
 	`<div>
-		<p>Health: ${carPlayerControls.carHealth}</p>
+		<p>Health: ${Math.round(carPlayerControls.carHealth)}</p>
 		<p>Score: ${Math.round(gameParams.score)}</p>
-		<p>Fuel: ${carPlayerControls.carFuel}</p>
+		<p>Fuel: ${Math.round(carPlayerControls.carFuel)}</p>
 		<p>Time Elapsed: ${Math.round(gameParams.timeElapsed/1000)}</p>
+		<p>Mileage: ${Math.round(carPlayerControls.distanceCovered/carPlayerControls.fuelUsed)}</p>
 	</div>`;
 }
 
@@ -266,6 +288,11 @@ document.addEventListener("keydown", (event) => {
 
 	// pausing game
 	if (keysPressed[' ']){
+		if (gameParams.isPaused){
+			document.body.removeChild(startImage);
+		} else {
+			document.body.appendChild(startImage);
+		}
 		gameParams.isPaused = !gameParams.isPaused;
 	}
 
@@ -305,7 +332,7 @@ document.addEventListener("keyup", (event) => {
 		carPlayerControls.isAcce = false;
 	}
 
-	if (event.key === 'w'){
+	if (event.key === 's'){
 		carPlayerControls.isBraking = false;
 	}
 
