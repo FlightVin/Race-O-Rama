@@ -1,4 +1,3 @@
-
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
@@ -84,52 +83,75 @@ const gameParams = {
 	lapPivotPoint: new THREE.Vector3(-120, 0, -120),
 	lapsOver: 0,
 	lapsBool: false,
+	offTrackHealthPenalty: 45,
 	trackPoints: [
-		new THREE.Vector3(15, 0, 0),
-		new THREE.Vector3(15, 0, -30),
-		new THREE.Vector3(15, 0, -60),
-		new THREE.Vector3(15, 0, -90),
-		new THREE.Vector3(15, 0, -120),
-		new THREE.Vector3(15, 0, -150),
 		new THREE.Vector3(15, 0, 20),
-		new THREE.Vector3(-8, 0, 40),
-		new THREE.Vector3(-31, 0, 40),
-		new THREE.Vector3(-45, 0, 25),
-		new THREE.Vector3(-45, 0, 0),
-		new THREE.Vector3(-45, 0, -16),
-		new THREE.Vector3(-55, 0, -35),
-		new THREE.Vector3(-70, 0, -45),
-		new THREE.Vector3(-90, 0, -45),
-		new THREE.Vector3(-115, 0, -60),
-		new THREE.Vector3(-120, 0, -75),
-		new THREE.Vector3(-120, 0, -100),
-		new THREE.Vector3(-120, 0, -120),
-		new THREE.Vector3(-120, 0, -140),
-		new THREE.Vector3(-120, 0, -150),
-		new THREE.Vector3(-120, 0, -75),
-		new THREE.Vector3(-115, 0, -170),
+		new THREE.Vector3(13, 0, 22),
+		new THREE.Vector3(10, 0, 30),
+		new THREE.Vector3(7, 0, 35),
+		new THREE.Vector3(2, 0, 39),
+		new THREE.Vector3(-5, 0, 42),
+		new THREE.Vector3(-11, 0, 43),
+		new THREE.Vector3(-21, 0, 43),
+		new THREE.Vector3(-26, 0, 41),
+		new THREE.Vector3(-35, 0, 35),
+		new THREE.Vector3(-41, 0, 26),
+		new THREE.Vector3(-45, 0, 20),
+		new THREE.Vector3(-45, 0, 10),
+		new THREE.Vector3(-50, 0, -30),
+		new THREE.Vector3(-57, 0, -38),
+		new THREE.Vector3(-64, 0, -42),
+		new THREE.Vector3(-77, 0, -46),
+		new THREE.Vector3(-82, 0, -46),
+		new THREE.Vector3(-88, 0, -46),
+		new THREE.Vector3(-100, 0, -47),
+		new THREE.Vector3(-107, 0, -52),
+		new THREE.Vector3(-115, 0, -59),
+		new THREE.Vector3(-116, 0, -163),
+		new THREE.Vector3(-110, 0, -170),
 		new THREE.Vector3(-105, 0, -175),
-		new THREE.Vector3(-85, 0, -180),
-		new THREE.Vector3(-65, 0, -195),
-		new THREE.Vector3(-60, 0, -220),
-		new THREE.Vector3(-45, 0, -235),
-		new THREE.Vector3(-30, 0, -240),
-		new THREE.Vector3(0, 0, -240),
-		new THREE.Vector3(30, 0, -240),
-		new THREE.Vector3(60, 0, -240),
-		new THREE.Vector3(90, 0, -240),
+		new THREE.Vector3(-98, 0, -180),
+		new THREE.Vector3(-90, 0, -180),
+		new THREE.Vector3(-75, 0, -185),
+		new THREE.Vector3(-70, 0, -190),
+		new THREE.Vector3(-65, 0, -200),
+		new THREE.Vector3(-60, 0, -205),
+		new THREE.Vector3(-58, 0, -215),
+		new THREE.Vector3(-58, 0, -220),
+		new THREE.Vector3(-55, 0, -225),
+		new THREE.Vector3(-50, 0, -230),
+		new THREE.Vector3(-40, 0, -235),
 		new THREE.Vector3(110, 0, -230),
-		new THREE.Vector3(120, 0, -210),
-		new THREE.Vector3(95, 0, -180),
-		new THREE.Vector3(65, 0, -210),
-		new THREE.Vector3(35, 0, -210),
-		new THREE.Vector3(15, 0, -150),
-		new THREE.Vector3(15, 0, -120),
-		new THREE.Vector3(15, 0, -90),
-		new THREE.Vector3(15, 0, -60),
-		new THREE.Vector3(15, 0, -30),
-	]
+		new THREE.Vector3(115, 0, -225),
+		new THREE.Vector3(117, 0, -217),
+		new THREE.Vector3(119, 0, -211),
+		new THREE.Vector3(118, 0, -204),
+		new THREE.Vector3(114, 0, -196),
+		new THREE.Vector3(110, 0, -190),
+		new THREE.Vector3(105, 0, -185),
+		new THREE.Vector3(30, 0, -175),
+		new THREE.Vector3(25, 0, -174),
+		new THREE.Vector3(20, 0, -170),
+		new THREE.Vector3(20, 0, -165),
+		new THREE.Vector3(18, 0, -163),
+		new THREE.Vector3(16, 0, -157),
+	],
 }
+
+// generating traight race tracks
+for (let i = -155; i<=15; i+=5){
+	gameParams.trackPoints.push(new THREE.Vector3(15, 0, i));
+}
+for (let i = -155; i<=-70; i+=5){
+	gameParams.trackPoints.push(new THREE.Vector3(-120, 0, i));
+}
+for (let i = -30; i<=105; i+=5){
+	gameParams.trackPoints.push(new THREE.Vector3(i, 0, -240));
+}
+for (let i = 35; i<=105; i+=5){
+	gameParams.trackPoints.push(new THREE.Vector3(i, 0, -180));
+}
+// done generating race tracks
 
 // setting up car controls
 const carPlayerControls = {
@@ -448,6 +470,20 @@ const checkFuelCollision = () => {
 	}
 }
 
+const checkTrackExit = (timeInterval) => {
+	let minDist = Infinity;
+	gameParams.trackPoints.forEach( (ele) => {
+		if (carPlayerModel.position.distanceTo(ele) < minDist){
+			minDist = carPlayerModel.position.distanceTo(ele);
+		}
+	});
+
+	if (minDist > 17){
+		console.log("Outside Track");
+		carPlayerControls.carHealth -= timeInterval/1000*gameParams.offTrackHealthPenalty;
+	}
+}
+
 // event listeners
 // rightclick
 document.addEventListener("contextmenu", (event) => {
@@ -483,7 +519,7 @@ const renderDashboard = () => {
 		<p>Time Elapsed: ${Math.round(gameParams.timeElapsed/1000)}</p>
 		<p>Mileage: ${carPlayerControls.fuelUsed > 0 ? (Math.round(carPlayerControls.distanceCovered/carPlayerControls.fuelUsed)) : 0}</p>
 		<p>Laps Covered: ${gameParams.lapsOver}</p>
-		<p>Next Fuel Tank Distance : ${Math.round(carPlayerControls.nextFuelDistance)}</p>
+		<p>Next Fuel Tank Distance : ${Math.round(carPlayerControls.nextFuelDistance) === Infinity ? "Wait for next lap" : Math.round(carPlayerControls.nextFuelDistance)}</p>
 	</div>`;
 }
 
@@ -579,6 +615,7 @@ function render() {
 		carPlayerMove(timeInterval);
 		checkLaps();
 		checkFuelCollision();
+		checkTrackExit(timeInterval);
 
 		// updating elapsed time
 		gameParams.timeElapsed += timeInterval;
@@ -591,3 +628,4 @@ function render() {
     // Loop
     requestAnimationFrame(render);
 }
+

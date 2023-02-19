@@ -4,6 +4,7 @@
       "webpack-cli": "^4.10.0"
    },
    "dependencies": {
+      "fs": "^0.0.1-security",
       "three": "^0.149.0"
    }
 }
