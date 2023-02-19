@@ -97,7 +97,10 @@ const gameParams = {
 		new THREE.Vector3(-35, 0, 35),
 		new THREE.Vector3(-41, 0, 26),
 		new THREE.Vector3(-45, 0, 20),
+		new THREE.Vector3(-45, 0, -8),
 		new THREE.Vector3(-45, 0, 10),
+		new THREE.Vector3(-45, 0, -10),
+		new THREE.Vector3(-43, 0, -17),
 		new THREE.Vector3(-50, 0, -30),
 		new THREE.Vector3(-57, 0, -38),
 		new THREE.Vector3(-64, 0, -42),
@@ -116,6 +119,7 @@ const gameParams = {
 		new THREE.Vector3(-70, 0, -190),
 		new THREE.Vector3(-65, 0, -200),
 		new THREE.Vector3(-60, 0, -205),
+		new THREE.Vector3(-61, 0, -195),
 		new THREE.Vector3(-58, 0, -215),
 		new THREE.Vector3(-58, 0, -220),
 		new THREE.Vector3(-55, 0, -225),
@@ -442,6 +446,9 @@ const renderFuels = () => {
 
 const lapChangeCallback = () => {
 	renderFuels();
+	if (gameParams.lapsOver === 5){
+		gameParams.isOver = true;
+	}
 }
 
 const checkLaps = () => {
@@ -484,12 +491,6 @@ const checkTrackExit = (timeInterval) => {
 	}
 }
 
-// event listeners
-// rightclick
-document.addEventListener("contextmenu", (event) => {
-	console.log(carPlayerModel.position);
-});
-
 var dashboardText = document.createElement('div');
 dashboardText.style.position = 'absolute';
 dashboardText.style.zIndex = 1;
@@ -506,8 +507,52 @@ startImage.style.top = 0 + 'px';
 startImage.style.left = 0 + 'px';
 startImage.style.height = '100%';
 startImage.style.width = '100%';
-startImage.innerHTML = '<img src="StartImage.png" width="100%" height="100%">';
+startImage.style.backgroundColor = '#F0FFFF';
+startImage.style.display = 'flex';
+startImage.style.alignItems = 'center';
+startImage.style.justifyContent = 'center';
+startImage.style.flexDirection = 'column';
+startImage.innerHTML = `
+	<div style="padding:0;">
+	<h1>Controls</h1>
+	</div>
+	<div>
+	<h2>Movement</h2>
+	</div>
+	<div>
+	<h3>w: Accelerate Forward</h3>
+	<h3>s/l: Brake</h3>
+	<h3>a: Turn Left</h3>
+	<h3>d: Turn Right</h3>
+	</div>
+
+	<div>
+	<h2>Other Controls</h2>
+	</div>
+	<div>
+	<h3>Space Bar: Start Game, Pause Game</h3>
+	<h3>t: Toggle View</h3>
+	</div>
+`
 document.body.appendChild(startImage);
+
+var gameOverScreen = document.createElement('div');
+gameOverScreen.style.position = 'absolute';
+gameOverScreen.style.zIndex = 100;
+gameOverScreen.style.top = 0 + 'px';
+gameOverScreen.style.left = 0 + 'px';
+gameOverScreen.style.height = '100%';
+gameOverScreen.style.width = '100%';
+gameOverScreen.style.backgroundColor = '#F0FFFF';
+gameOverScreen.style.display = 'flex';
+gameOverScreen.style.alignItems = 'center';
+gameOverScreen.style.justifyContent = 'center';
+startImage.style.flexDirection = 'column';
+gameOverScreen.innerHTML = `
+	<div>
+		Game Over
+	</div>
+`
 
 // showing game controls
 const renderDashboard = () => {
@@ -522,6 +567,22 @@ const renderDashboard = () => {
 		<p>Next Fuel Tank Distance : ${Math.round(carPlayerControls.nextFuelDistance) === Infinity ? "Wait for next lap" : Math.round(carPlayerControls.nextFuelDistance)}</p>
 	</div>`;
 }
+
+const checkHealth = () => {
+	// if (carPlayerControls.carHealth <= 0){
+	// 	carPlayerControls.carHealth = 0;
+	// 	gameParams.isDead = true;
+	// 	gameParams.isOver = true;
+	// 	carPlayerModel.position.set(-20, 10, -110);
+	// 	scene.remove(carPlayerModel);
+	// }
+}
+
+// event listeners
+// rightclick
+document.addEventListener("contextmenu", (event) => {
+	console.log(carPlayerModel.position);
+});
 
 // key pressed
 let keysPressed = {};
@@ -589,6 +650,7 @@ document.addEventListener("keyup", (event) => {
 });
 
 var lastTime = new Date().getTime();
+var renderedGameOverScreen =  false;
 
 // rendering
 requestAnimationFrame(render);
@@ -608,7 +670,7 @@ function render() {
 	const timeInterval = newTime - lastTime;
 	lastTime = newTime;
 
-	if (!gameParams.isPaused){
+	if (!gameParams.isPaused && !gameParams.isOver){
 		// moving car
 		carPlayerTurn(timeInterval);
 		carPlayerAcce(timeInterval)
@@ -616,9 +678,16 @@ function render() {
 		checkLaps();
 		checkFuelCollision();
 		checkTrackExit(timeInterval);
+		checkHealth();
 
 		// updating elapsed time
 		gameParams.timeElapsed += timeInterval;
+	}
+
+	if (gameParams.isOver && !renderedGameOverScreen){
+		console.log("Game Over");
+		document.body.appendChild(gameOverScreen);
+		renderedGameOverScreen = true;
 	}
 
 	// birds eye view
