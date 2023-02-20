@@ -7,6 +7,7 @@ const loader = new GLTFLoader();
 const carPlayerPath = '../car-old-school.glb';
 const raceTrackPath = '../race-track-new.glb';
 const fuelTankPath = '../fuel-drum.glb';
+const opponentCarPath = '../opponent-car.glb';
 
 // render
 const renderer = new THREE.WebGLRenderer(); 
@@ -84,6 +85,7 @@ const gameParams = {
 	lapsOver: 0,
 	lapsBool: false,
 	offTrackHealthPenalty: 30,
+	collisonHealthDecrease: 10,
 	trackPoints: [
 		new THREE.Vector3(15, 0, 20),
 		new THREE.Vector3(13, 0, 22),
@@ -216,6 +218,63 @@ const fuelParams = {
 	nextSwitchDist: 25,
 }
 
+// variables for opponent cars
+const opponentCarParams = {
+	numCars: 3,
+	carModels: [
+		null,
+		null,
+		null,
+	],
+	initPos: [
+		new THREE.Vector3(10, 0, -10),
+		new THREE.Vector3(18, 0, -10),
+		new THREE.Vector3(26, 0, -10),
+	],
+	pivotPoints:[
+		new THREE.Vector3(6, 0, 33),
+		new THREE.Vector3(-36, 0, 35),
+		new THREE.Vector3(-46, 0, -19),
+		new THREE.Vector3(-59, 0, -39),
+		new THREE.Vector3(-94, 0, -45),
+		new THREE.Vector3(-112, 0, -56),
+		new THREE.Vector3(-120, 0, -82),
+		new THREE.Vector3(-117, 0, -161),
+		new THREE.Vector3(-105, 0, -175),
+		new THREE.Vector3(-74, 0, -185),
+		new THREE.Vector3(-62, 0, -201),
+		new THREE.Vector3(-56, 0, -226),
+		new THREE.Vector3(-31, 0, -241),	
+		new THREE.Vector3(69, 0, -240),	
+		new THREE.Vector3(111, 0, -230),
+		new THREE.Vector3(120, 0, -210),
+		new THREE.Vector3(110, 0, -189),
+		new THREE.Vector3(92, 0, -178),
+		new THREE.Vector3(24, 0, -171),
+		new THREE.Vector3(15, 0, -155),
+		new THREE.Vector3(15, 0, 5),
+	],
+	opponentPivots:[
+		[],
+		[],
+		[],
+	],
+	baseSpeed: 0.03,
+	curPivot:[
+		0,
+		0,
+		0,
+	]
+}
+
+const initOpponentParams = () => {
+	for (let i = 0; i<opponentCarParams.numCars; i++){
+		opponentCarParams.pivotPoints.forEach(ele => {
+			opponentCarParams.opponentPivots[i].push(new THREE.Vector3(ele.x + Math.random()*10, ele.y, ele.z + Math.random()*10));
+		})
+	}
+}
+initOpponentParams();
 
 // loading racetrack pack
 var raceTrackModel = new THREE.Object3D();;
@@ -231,22 +290,30 @@ loader.load(raceTrackPath, function ( gltf ) {
 	console.error( error );
 });
 
-const raceTrackStartx = 0.0, 
+const raceTrackStartx = 2.0, 
 	raceTrackStarty = 0.0,
-	raceTrackStartz = 0.0;
+	raceTrackStartz = -10.0;
 
 // loading oldcar pack
 var carPlayerModel = new THREE.Object3D();;
-loader.load(carPlayerPath, function ( gltf ) {
+loader.load(opponentCarPath, function ( gltf ) {
 	carPlayerModel = gltf.scene;
 
 	carPlayerModel.position.set(raceTrackStartx, raceTrackStarty, raceTrackStartz);
-	carPlayerModel.scale.set(0.01, 0.01, 0.01);
 	carPlayerModel.traverse(n => { if ( n.isMesh ) {
 		n.castShadow = true; 
 		n.receiveShadow = true;
 		if(n.material.map) n.material.map.anisotropy = 16; 
 	  }});
+
+	const scaleRatio = 0.015;
+	carPlayerModel.scale.set(scaleRatio, scaleRatio, scaleRatio);
+
+	const material = new THREE.MeshPhongMaterial( { color: 0xCCF381} );
+
+	carPlayerModel.traverse( function( child ) {
+    	if ( child.isMesh ) child.material = material;
+		} );
 
 	scene.add(carPlayerModel);
 }, undefined, function ( error ) {
@@ -258,7 +325,6 @@ var fuelTankModel = new THREE.Object3D();;
 loader.load(fuelTankPath, function ( gltf ) {
 	fuelTankModel = gltf.scene;
 
-	fuelTankModel.position.set(0, 0, 10);
 	fuelTankModel.scale.set(1.5, 1.5, 1.5);
 	fuelTankModel.traverse(n => { if ( n.isMesh ) {
 		n.castShadow = true; 
@@ -278,6 +344,54 @@ loader.load(fuelTankPath, function ( gltf ) {
 		scene.add(curFuel);
 
 		fuelParams.fuelModels[i] = curFuel;
+	}
+	
+	/*
+	for (let i = 0; i<opponentCarParams.opponentPivots[0].length; i++){
+		var curFuel = fuelTankModel.clone();
+
+		curFuel.position.set(
+			opponentCarParams.opponentPivots[0][i].x,
+			opponentCarParams.opponentPivots[0][i].y,
+			opponentCarParams.opponentPivots[0][i].z
+		);
+
+		scene.add(curFuel);
+	}
+	*/
+	
+}, undefined, function ( error ) {
+	console.error( error );
+});
+
+// loading opponent car model
+var opponentCarModel = new THREE.Object3D();;
+loader.load(opponentCarPath, function ( gltf ) {
+	opponentCarModel = gltf.scene;
+
+	opponentCarModel.position.set(0, 0, 10);
+	opponentCarModel.traverse(n => { if ( n.isMesh ) {
+		n.castShadow = true; 
+		n.receiveShadow = true;
+		if(n.material.map) n.material.map.anisotropy = 16; 
+	  }});
+
+	const material = new THREE.MeshPhongMaterial( { color: 0xe0e0e0} );
+
+	opponentCarModel.traverse( function( child ) {
+    	if ( child.isMesh ) child.material = material;
+		} );
+
+	const scaleRatio = 0.015;
+	opponentCarModel.scale.set(scaleRatio, scaleRatio, scaleRatio);
+
+	for (let i = 0; i<opponentCarParams.numCars; i++){
+		var curCar = opponentCarModel.clone();
+
+		curCar.position.set(opponentCarParams.initPos[i].x, opponentCarParams.initPos[i].y, opponentCarParams.initPos[i].z);
+		
+		scene.add(curCar);
+		opponentCarParams.carModels[i] = curCar;
 	}
 }, undefined, function ( error ) {
 	console.error( error );
@@ -449,6 +563,7 @@ const lapChangeCallback = () => {
 	if (gameParams.lapsOver === 5){
 		gameParams.isOver = true;
 	}
+	initOpponentParams();
 }
 
 const checkLaps = () => {
@@ -489,6 +604,39 @@ const checkTrackExit = (timeInterval) => {
 		console.log("Outside Track");
 		carPlayerControls.carSpeed = 0;
 		// carPlayerControls.carHealth -= timeInterval/1000*gameParams.offTrackHealthPenalty;
+	}
+}
+
+const moveOpponents = (timeInterval) => {
+	for (let i = 0; i<opponentCarParams.numCars; i++){
+		const curSpeed = opponentCarParams.baseSpeed + Math.random()*0.01;
+		let nextPivot = opponentCarParams.curPivot[i];
+
+		for (; nextPivot < opponentCarParams.opponentPivots[i].length; nextPivot++){
+			const nextPivotVector = opponentCarParams.opponentPivots[i][nextPivot];
+
+			if (nextPivotVector.distanceTo(opponentCarParams.carModels[i].position) > 20){
+				break;
+			}
+		}
+
+		if (nextPivot === opponentCarParams.opponentPivots[i].length){
+			nextPivot = 0;
+		}
+		opponentCarParams.curPivot[i] = nextPivot;
+		// console.log(opponentCarParams.curPivot[i]);
+
+		const targetPoint = opponentCarParams.opponentPivots[i][nextPivot];
+
+
+		var direction = new THREE.Vector3();
+		direction.subVectors(targetPoint, opponentCarParams.carModels[i].position);
+		direction.normalize();
+
+		var velocity = direction.multiplyScalar(curSpeed);
+
+		opponentCarParams.carModels[i].position.add(velocity.clone().multiplyScalar(timeInterval));
+		opponentCarParams.carModels[i].lookAt(targetPoint);
 	}
 }
 
@@ -576,6 +724,19 @@ const checkHealth = () => {
 		gameParams.isOver = true;
 		carPlayerModel.position.set(-20, 10, -110);
 		scene.remove(carPlayerModel);
+	}
+}
+
+const checkCarCollision = (timeInterval) => {
+	const playerBoundingBox = new THREE.Box3().setFromObject(carPlayerModel);
+	for (let i = 0; i<opponentCarParams.numCars; i++){
+		const opponentBoundingBox = new THREE.Box3().setFromObject(opponentCarParams.carModels[i]);
+
+		if (opponentBoundingBox.intersectsBox(playerBoundingBox)){
+			console.log(`Collision between player and ${i}`);
+			carPlayerControls.carSpeed = 0;
+			carPlayerControls.carHealth -= gameParams.collisonHealthDecrease;
+		}
 	}
 }
 
@@ -679,7 +840,11 @@ function render() {
 		checkLaps();
 		checkFuelCollision();
 		checkTrackExit(timeInterval);
+
+		moveOpponents(timeInterval);
+
 		checkHealth();
+		checkCarCollision(timeInterval);
 
 		// updating elapsed time
 		gameParams.timeElapsed += timeInterval;
