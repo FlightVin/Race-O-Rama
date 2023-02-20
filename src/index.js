@@ -85,7 +85,7 @@ const gameParams = {
 	lapsOver: 0,
 	lapsBool: false,
 	offTrackHealthPenalty: 30,
-	collisonHealthDecrease: 10,
+	collisonHealthDecrease: 30,
 	trackPoints: [
 		new THREE.Vector3(15, 0, 20),
 		new THREE.Vector3(13, 0, 22),
@@ -264,7 +264,22 @@ const opponentCarParams = {
 		0,
 		0,
 		0,
-	]
+	],
+	distanceCovered: [
+		0,
+		0,
+		0,
+	],
+	carHealth: [
+		100,
+		100,
+		100
+	],
+	isAlive: [
+		true,
+		true,
+		true,
+	],
 }
 
 const initOpponentParams = () => {
@@ -560,7 +575,7 @@ const renderFuels = () => {
 
 const lapChangeCallback = () => {
 	renderFuels();
-	if (gameParams.lapsOver === 5){
+	if (gameParams.lapsOver === 2){
 		gameParams.isOver = true;
 	}
 	initOpponentParams();
@@ -604,39 +619,6 @@ const checkTrackExit = (timeInterval) => {
 		console.log("Outside Track");
 		carPlayerControls.carSpeed = 0;
 		// carPlayerControls.carHealth -= timeInterval/1000*gameParams.offTrackHealthPenalty;
-	}
-}
-
-const moveOpponents = (timeInterval) => {
-	for (let i = 0; i<opponentCarParams.numCars; i++){
-		const curSpeed = opponentCarParams.baseSpeed + Math.random()*0.01;
-		let nextPivot = opponentCarParams.curPivot[i];
-
-		for (; nextPivot < opponentCarParams.opponentPivots[i].length; nextPivot++){
-			const nextPivotVector = opponentCarParams.opponentPivots[i][nextPivot];
-
-			if (nextPivotVector.distanceTo(opponentCarParams.carModels[i].position) > 20){
-				break;
-			}
-		}
-
-		if (nextPivot === opponentCarParams.opponentPivots[i].length){
-			nextPivot = 0;
-		}
-		opponentCarParams.curPivot[i] = nextPivot;
-		// console.log(opponentCarParams.curPivot[i]);
-
-		const targetPoint = opponentCarParams.opponentPivots[i][nextPivot];
-
-
-		var direction = new THREE.Vector3();
-		direction.subVectors(targetPoint, opponentCarParams.carModels[i].position);
-		direction.normalize();
-
-		var velocity = direction.multiplyScalar(curSpeed);
-
-		opponentCarParams.carModels[i].position.add(velocity.clone().multiplyScalar(timeInterval));
-		opponentCarParams.carModels[i].lookAt(targetPoint);
 	}
 }
 
@@ -705,6 +687,34 @@ gameOverScreen.innerHTML = `
 
 // showing game controls
 const renderDashboard = () => {
+
+	var leaderBoardParams = [
+		{
+			dist:carPlayerControls.distanceCovered,
+			name:'P1'
+		},
+		{
+			dist:opponentCarParams.distanceCovered[0],
+			name:'O1'
+		},
+		{
+			dist:opponentCarParams.distanceCovered[1],
+			name:'O2'
+		},
+		{
+			dist:opponentCarParams.distanceCovered[2],
+			name:'O3'
+		},
+	]
+
+	leaderBoardParams = leaderBoardParams.sort( (ele1, ele2) => (ele1.dist < ele2.dist ? 1 : (ele1.dist > ele2.dist) ? -1 : 0));
+
+	let leaderBoard = '';
+	leaderBoardParams.forEach (ele => {
+		leaderBoard += ele.name;
+		leaderBoard += ' ';
+	})
+
 	dashboardText.innerHTML = 
 	`<div>
 		<p>Health: ${Math.round(carPlayerControls.carHealth)}</p>
@@ -714,6 +724,7 @@ const renderDashboard = () => {
 		<p>Mileage: ${carPlayerControls.fuelUsed > 0 ? (Math.round(carPlayerControls.distanceCovered/carPlayerControls.fuelUsed)) : 0}</p>
 		<p>Laps Covered: ${gameParams.lapsOver}</p>
 		<p>Next Fuel Tank Distance : ${Math.round(carPlayerControls.nextFuelDistance) === Infinity ? "Wait for next lap" : Math.round(carPlayerControls.nextFuelDistance)}</p>
+		<p> ${leaderBoard} </p>
 	</div>`;
 }
 
@@ -725,17 +736,95 @@ const checkHealth = () => {
 		carPlayerModel.position.set(-20, 10, -110);
 		scene.remove(carPlayerModel);
 	}
+
+	for (let i = 0; i<opponentCarParams.numCars; i++){
+		const curModel = opponentCarParams.carModels[i];
+
+		if (opponentCarParams.carHealth[i] <= 0){
+			opponentCarParams.carHealth[i] = 0;
+			// curModel.position.set(0, -20 - Math.random(1000), 0);
+			// scene.remove(curModel);
+			opponentCarParams.isAlive[i] = false;
+		}
+	}
+
+}
+
+const moveOpponents = (timeInterval) => {
+	for (let i = 0; i<opponentCarParams.numCars; i++){
+		if (!opponentCarParams.isAlive[i]){
+			continue;
+		}
+
+		const curSpeed = opponentCarParams.baseSpeed + Math.random()*0.01;
+		let nextPivot = opponentCarParams.curPivot[i];
+
+		for (; nextPivot < opponentCarParams.opponentPivots[i].length; nextPivot++){
+			const nextPivotVector = opponentCarParams.opponentPivots[i][nextPivot];
+
+			if (nextPivotVector.distanceTo(opponentCarParams.carModels[i].position) > 20){
+				break;
+			}
+		}
+
+		if (nextPivot === opponentCarParams.opponentPivots[i].length){
+			nextPivot = 0;
+		}
+		opponentCarParams.curPivot[i] = nextPivot;
+		// console.log(opponentCarParams.curPivot[i]);
+
+		const targetPoint = opponentCarParams.opponentPivots[i][nextPivot];
+
+
+		var direction = new THREE.Vector3();
+		direction.subVectors(targetPoint, opponentCarParams.carModels[i].position);
+		direction.normalize();
+
+		var velocity = direction.multiplyScalar(curSpeed);
+
+		opponentCarParams.carModels[i].position.add(velocity.clone().multiplyScalar(timeInterval));
+		opponentCarParams.carModels[i].lookAt(targetPoint);
+
+		opponentCarParams.distanceCovered[i] += timeInterval*curSpeed;
+	}
 }
 
 const checkCarCollision = (timeInterval) => {
 	const playerBoundingBox = new THREE.Box3().setFromObject(carPlayerModel);
 	for (let i = 0; i<opponentCarParams.numCars; i++){
+
 		const opponentBoundingBox = new THREE.Box3().setFromObject(opponentCarParams.carModels[i]);
 
 		if (opponentBoundingBox.intersectsBox(playerBoundingBox)){
 			console.log(`Collision between player and ${i}`);
 			carPlayerControls.carSpeed = 0;
 			carPlayerControls.carHealth -= gameParams.collisonHealthDecrease;
+			opponentCarParams.carHealth[i] -= gameParams.collisonHealthDecrease;
+		}
+
+		// checking for collisions with other cars
+		for (let j = i+1; j<opponentCarParams.numCars; j++){
+
+			const otherBoundingBox = new THREE.Box3().setFromObject(opponentCarParams.carModels[j]);
+
+			if (opponentBoundingBox.intersectsBox(otherBoundingBox) && (opponentCarParams.isAlive[i] || opponentCarParams.isAlive[j])){
+				console.log(`Collision between ${j} and ${i}`);
+
+				// moving j back
+				if(opponentCarParams.isAlive[j]){
+					let nextPivot = opponentCarParams.curPivot[j];
+					const targetPoint = opponentCarParams.opponentPivots[j][nextPivot];
+					var direction = new THREE.Vector3();
+					direction.subVectors(targetPoint, opponentCarParams.carModels[j].position);
+					direction.normalize();
+					var disp = direction.multiplyScalar(-3);
+					opponentCarParams.carModels[j].position.add(disp.clone());
+				}
+
+				// reducing health
+				opponentCarParams.carHealth[i] -= gameParams.collisonHealthDecrease;
+				opponentCarParams.carHealth[j] -= gameParams.collisonHealthDecrease;
+			}
 		}
 	}
 }
