@@ -83,7 +83,7 @@ const gameParams = {
 	lapPivotPoint: new THREE.Vector3(-120, 0, -120),
 	lapsOver: 0,
 	lapsBool: false,
-	offTrackHealthPenalty: 45,
+	offTrackHealthPenalty: 30,
 	trackPoints: [
 		new THREE.Vector3(15, 0, 20),
 		new THREE.Vector3(13, 0, 22),
@@ -487,7 +487,8 @@ const checkTrackExit = (timeInterval) => {
 
 	if (minDist > 17){
 		console.log("Outside Track");
-		carPlayerControls.carHealth -= timeInterval/1000*gameParams.offTrackHealthPenalty;
+		carPlayerControls.carSpeed = 0;
+		// carPlayerControls.carHealth -= timeInterval/1000*gameParams.offTrackHealthPenalty;
 	}
 }
 
@@ -569,13 +570,13 @@ const renderDashboard = () => {
 }
 
 const checkHealth = () => {
-	// if (carPlayerControls.carHealth <= 0){
-	// 	carPlayerControls.carHealth = 0;
-	// 	gameParams.isDead = true;
-	// 	gameParams.isOver = true;
-	// 	carPlayerModel.position.set(-20, 10, -110);
-	// 	scene.remove(carPlayerModel);
-	// }
+	if (carPlayerControls.carHealth <= 0){
+		carPlayerControls.carHealth = 0;
+		gameParams.isDead = true;
+		gameParams.isOver = true;
+		carPlayerModel.position.set(-20, 10, -110);
+		scene.remove(carPlayerModel);
+	}
 }
 
 // event listeners
