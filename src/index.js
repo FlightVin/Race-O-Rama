@@ -4,10 +4,11 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 
 // loading 3D models loader
 const loader = new GLTFLoader();
-const carPlayerPath = '../car-old-school.glb';
+const audiencePath = '../audience.glb';
 const raceTrackPath = '../race-track-new.glb';
 const fuelTankPath = '../fuel-drum.glb';
 const opponentCarPath = '../opponent-car.glb';
+const stadiumPath = '../stadium.glb';
 
 // render
 const renderer = new THREE.WebGLRenderer(); 
@@ -79,13 +80,14 @@ const gameParams = {
 	isPaused: true,
 	isOver: false,
 	isDead: false,
+	isOutOfFuel: false,
 	roadWidth: 30.0,
 	lapOverPoint: new THREE.Vector3(15, 0, 0),
 	lapPivotPoint: new THREE.Vector3(-120, 0, -120),
-	lapsOver: 0,
 	lapsBool: false,
 	offTrackHealthPenalty: 30,
-	collisonHealthDecrease: 30,
+	collisonHealthDecrease: 15,
+	trackDist: 23,
 	trackPoints: [
 		new THREE.Vector3(15, 0, 20),
 		new THREE.Vector3(13, 0, 22),
@@ -142,6 +144,9 @@ const gameParams = {
 		new THREE.Vector3(18, 0, -163),
 		new THREE.Vector3(16, 0, -157),
 	],
+	stadiumPos: [
+		new THREE.Vector3(40, 0, 0),
+	],
 }
 
 // generating traight race tracks
@@ -171,6 +176,7 @@ const carPlayerControls = {
 	turnLeft: false,
 	turnRight: false,
 	isAcce: false,
+	lapsOver: 0,
 	isBraking: false,
 	frictionAcce: 0.00001,
 	turningAcce: 0.000002,
@@ -180,7 +186,12 @@ const carPlayerControls = {
 	fuelUsed: 0,
 	distanceCovered: 0,
 	nextFuelDistance: 0,
+	crossedPoints: [],
 }
+
+gameParams.trackPoints.forEach(ele => {
+	carPlayerControls.crossedPoints.push(false);
+});
 
 // variables for fuel tanks
 const fuelParams = {
@@ -259,7 +270,7 @@ const opponentCarParams = {
 		[],
 		[],
 	],
-	baseSpeed: 0.03,
+	baseSpeed: 0.029,
 	curPivot:[
 		0,
 		0,
@@ -280,7 +291,33 @@ const opponentCarParams = {
 		true,
 		true,
 	],
+	score: [
+		0,
+		0,
+		0,
+	],
+	lapsOver: [
+		0,
+		0,
+		0,
+	],
+	lapsBool: [
+		false,
+		false,
+		false,
+	],
+	crossedPoints: [
+		[],
+		[],
+		[],
+	]
 }
+
+gameParams.trackPoints.forEach(ele => {
+	for (let i = 0; i<opponentCarParams.numCars; i++){
+		opponentCarParams.crossedPoints[i].push(false);
+	}
+});
 
 const initOpponentParams = () => {
 	for (let i = 0; i<opponentCarParams.numCars; i++){
@@ -331,6 +368,50 @@ loader.load(opponentCarPath, function ( gltf ) {
 		} );
 
 	scene.add(carPlayerModel);
+}, undefined, function ( error ) {
+	console.error( error );
+});
+
+// loading audience
+var audienceModel = new THREE.Object3D();;
+loader.load(audiencePath, function ( gltf ) {
+	audienceModel = gltf.scene;
+
+	audienceModel.position.set(0, 0, 0);
+	audienceModel.traverse(n => { if ( n.isMesh ) {
+		n.castShadow = true; 
+		n.receiveShadow = true;
+		if(n.material.map) n.material.map.anisotropy = 16; 
+	  }});
+
+	const scaleRatio = 1;
+	audienceModel.scale.set(scaleRatio, scaleRatio, scaleRatio);
+
+
+	scene.add(audienceModel);
+}, undefined, function ( error ) {
+	console.error( error );
+});
+
+// loading stadium
+var stadiumModel = new THREE.Object3D();;
+loader.load(stadiumPath, function ( gltf ) {
+	stadiumModel = gltf.scene;
+
+	stadiumModel.position.set(0, 0, 0);
+	stadiumModel.traverse(n => { if ( n.isMesh ) {
+		n.castShadow = true; 
+		n.receiveShadow = true;
+		if(n.material.map) n.material.map.anisotropy = 16; 
+	  }});
+
+	const scaleRatio = 0.3;
+	stadiumModel.scale.set(scaleRatio, scaleRatio, scaleRatio);
+
+	for (let i = 0; i<gameParams.stadiumPos.length; i++){
+		
+	}
+
 }, undefined, function ( error ) {
 	console.error( error );
 });
@@ -485,7 +566,18 @@ const carPlayerTurn = (timeInterval) => {
 
 const carPlayerMove = (timeInterval) => {
 	// updating score
-	gameParams.score += timeInterval*carPlayerControls.carSpeed/10;
+	let curCrossed = 0;
+	for (let i = 0; i<carPlayerControls.crossedPoints.length; i++){
+
+		if (carPlayerModel.position.distanceTo(gameParams.trackPoints[i]) < gameParams.trackDist){
+			carPlayerControls.crossedPoints[i] = true;
+		}
+
+		if (carPlayerControls.crossedPoints[i]){
+			curCrossed++;
+		}
+	}
+	carPlayerControls.score = curCrossed + carPlayerControls.lapsOver*gameParams.trackPoints.length;
 
 	// updating distance covered
 	carPlayerControls.distanceCovered +=  timeInterval*carPlayerControls.carSpeed;
@@ -526,6 +618,10 @@ const carPlayerAcce = (timeInterval) => {
 
 		// checking fuel
 		if (carPlayerControls.carFuel < 0.2){
+			if (carPlayerControls.carSpeed < 0.05){
+				gameParams.isOutOfFuel = true;
+				gameParams.isOver = true;
+			}
 			return;
 		}
 
@@ -574,16 +670,21 @@ const renderFuels = () => {
 }
 
 const lapChangeCallback = () => {
+	for (let i = 0; i<carPlayerControls.crossedPoints.length; i++){
+		carPlayerControls.crossedPoints[i] = false;
+	}
+
 	renderFuels();
-	if (gameParams.lapsOver === 2){
+	if (carPlayerControls.lapsOver === 3){
 		gameParams.isOver = true;
 	}
 	initOpponentParams();
 }
 
 const checkLaps = () => {
-	if (carPlayerModel.position.distanceTo(gameParams.lapOverPoint) < 20 && gameParams.lapsBool){
-		gameParams.lapsOver++;
+	if (carPlayerModel.position.x >= -5 && carPlayerModel.position.x <= 35 
+			&& carPlayerModel.position.z <= 3 && carPlayerModel.position.z >= -3 && gameParams.lapsBool){
+		carPlayerControls.lapsOver++;
 		gameParams.lapsBool = false;
 		lapChangeCallback();
 	}
@@ -591,6 +692,24 @@ const checkLaps = () => {
 	if (carPlayerModel.position.distanceTo(gameParams.lapPivotPoint) < 20){
 		gameParams.lapsBool = true;
 	}
+
+	for (let i = 0; i < opponentCarParams.numCars; i++){
+		if (opponentCarParams.carModels[i].position.x >= -5 && opponentCarParams.carModels[i].position.x <= 35 
+				&& opponentCarParams.carModels[i].position.z <= 3 && opponentCarParams.carModels[i].position.z >= -3
+				&& opponentCarParams.lapsBool[i]){
+			opponentCarParams.lapsOver[i]++;
+			opponentCarParams.lapsBool[i] = false;
+
+			for (let j = 0; j<opponentCarParams.crossedPoints[i].length; j++){
+				opponentCarParams.crossedPoints[i][j] = false;
+			}
+		}
+
+		if (opponentCarParams.carModels[i].position.distanceTo(gameParams.lapPivotPoint) < 20){
+			opponentCarParams.lapsBool[i] = true;
+		}
+	}
+
 }
 
 const checkFuelCollision = () => {
@@ -679,30 +798,26 @@ gameOverScreen.style.display = 'flex';
 gameOverScreen.style.alignItems = 'center';
 gameOverScreen.style.justifyContent = 'center';
 startImage.style.flexDirection = 'column';
-gameOverScreen.innerHTML = `
-	<div>
-		Game Over
-	</div>
-`
+
 
 // showing game controls
 const renderDashboard = () => {
 
 	var leaderBoardParams = [
 		{
-			dist:carPlayerControls.distanceCovered,
+			dist:carPlayerControls.score,
 			name:'P1'
 		},
 		{
-			dist:opponentCarParams.distanceCovered[0],
+			dist:opponentCarParams.score[0],
 			name:'O1'
 		},
 		{
-			dist:opponentCarParams.distanceCovered[1],
+			dist:opponentCarParams.score[1],
 			name:'O2'
 		},
 		{
-			dist:opponentCarParams.distanceCovered[2],
+			dist:opponentCarParams.score[2],
 			name:'O3'
 		},
 	]
@@ -710,21 +825,26 @@ const renderDashboard = () => {
 	leaderBoardParams = leaderBoardParams.sort( (ele1, ele2) => (ele1.dist < ele2.dist ? 1 : (ele1.dist > ele2.dist) ? -1 : 0));
 
 	let leaderBoard = '';
-	leaderBoardParams.forEach (ele => {
-		leaderBoard += ele.name;
-		leaderBoard += ' ';
-	})
+	for (let i = 0; i<leaderBoardParams.length; i++){
+		leaderBoard += '<div>';
+		leaderBoard += String(i+1);
+		leaderBoard += ". ";
+		leaderBoard += leaderBoardParams[i].name;
+		leaderBoard += " ";
+		leaderBoard += leaderBoardParams[i].dist;
+		leaderBoard += '</div>';
+	}
 
 	dashboardText.innerHTML = 
 	`<div>
 		<p>Health: ${Math.round(carPlayerControls.carHealth)}</p>
-		<p>Score: ${Math.round(gameParams.score)}</p>
+		<p>Score: ${Math.round(carPlayerControls.score)}</p>
 		<p>Fuel: ${Math.round(carPlayerControls.carFuel)}</p>
 		<p>Time Elapsed: ${Math.round(gameParams.timeElapsed/1000)}</p>
 		<p>Mileage: ${carPlayerControls.fuelUsed > 0 ? (Math.round(carPlayerControls.distanceCovered/carPlayerControls.fuelUsed)) : 0}</p>
-		<p>Laps Covered: ${gameParams.lapsOver}</p>
+		<p>Laps Covered: ${carPlayerControls.lapsOver}</p>
 		<p>Next Fuel Tank Distance : ${Math.round(carPlayerControls.nextFuelDistance) === Infinity ? "Wait for next lap" : Math.round(carPlayerControls.nextFuelDistance)}</p>
-		<p> ${leaderBoard} </p>
+		<p> ${leaderBoard}</p>
 	</div>`;
 }
 
@@ -755,6 +875,19 @@ const moveOpponents = (timeInterval) => {
 		if (!opponentCarParams.isAlive[i]){
 			continue;
 		}
+
+		let curCrossed = 0;
+		for (let j = 0; j<opponentCarParams.crossedPoints[i].length; j++){
+	
+			if (opponentCarParams.carModels[i].position.distanceTo(gameParams.trackPoints[j]) < gameParams.trackDist){
+				opponentCarParams.crossedPoints[i][j] = true;
+			}
+	
+			if (opponentCarParams.crossedPoints[i][j]){
+				curCrossed++;
+			}
+		}
+		opponentCarParams.score[i] = curCrossed + opponentCarParams.lapsOver[i]*gameParams.trackPoints.length;
 
 		const curSpeed = opponentCarParams.baseSpeed + Math.random()*0.01;
 		let nextPivot = opponentCarParams.curPivot[i];
@@ -817,7 +950,7 @@ const checkCarCollision = (timeInterval) => {
 					var direction = new THREE.Vector3();
 					direction.subVectors(targetPoint, opponentCarParams.carModels[j].position);
 					direction.normalize();
-					var disp = direction.multiplyScalar(-3);
+					var disp = direction.multiplyScalar(-8);
 					opponentCarParams.carModels[j].position.add(disp.clone());
 				}
 
@@ -941,6 +1074,52 @@ function render() {
 
 	if (gameParams.isOver && !renderedGameOverScreen){
 		console.log("Game Over");
+
+		var leaderBoardParams = [
+			{
+				dist:carPlayerControls.score,
+				name:'Player'
+			},
+			{
+				dist:opponentCarParams.score[0],
+				name:'Opponent 1'
+			},
+			{
+				dist:opponentCarParams.score[1],
+				name:'Opponent 2'
+			},
+			{
+				dist:opponentCarParams.score[2],
+				name:'Opponent 3'
+			},
+		]
+	
+		leaderBoardParams = leaderBoardParams.sort( (ele1, ele2) => (ele1.dist < ele2.dist ? 1 : (ele1.dist > ele2.dist) ? -1 : 0));
+		
+		let leaderBoard = '';
+		for (let i = 0; i<leaderBoardParams.length; i++){
+			leaderBoard += '<div><h3>';
+			leaderBoard += String(i+1);
+			leaderBoard += ". ";
+			leaderBoard += leaderBoardParams[i].name;
+			leaderBoard += ": ";
+			leaderBoard += leaderBoardParams[i].dist;
+			leaderBoard += '</h3></div>';
+		}
+		
+		gameOverScreen.innerHTML = `
+			<div>
+				<div><h1>Game Over</h1></div>
+				<div><h2>
+					${gameParams.isDead ? "You Collided" : (gameParams.isOutOfFuel) ? "You ran out of fuel :(" : "Race Finished" }
+				</h2></div>
+
+				<div><h2>Ranks</h2></div>
+
+					${leaderBoard}
+			</div>
+		`
+
 		document.body.appendChild(gameOverScreen);
 		renderedGameOverScreen = true;
 	}
@@ -952,4 +1131,3 @@ function render() {
     // Loop
     requestAnimationFrame(render);
 }
-
