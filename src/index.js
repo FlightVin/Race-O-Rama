@@ -146,6 +146,48 @@ const gameParams = {
 	],
 	stadiumPos: [
 		new THREE.Vector3(40, 0, 0),
+		new THREE.Vector3(40, 0, 10),
+		new THREE.Vector3(40, 0, -10),
+		new THREE.Vector3(40, 0, -20),
+		new THREE.Vector3(40, 0, -30),
+		new THREE.Vector3(40, 0, -40),
+		new THREE.Vector3(40, 0, -50),
+		new THREE.Vector3(40, 0, -60),
+		new THREE.Vector3(40, 0, -70),
+		new THREE.Vector3(40, 0, -80),
+		new THREE.Vector3(40, 0, -80),
+		new THREE.Vector3(40, 0, -100),
+		new THREE.Vector3(40, 0, -110),
+		new THREE.Vector3(40, 0, -120),
+		new THREE.Vector3(40, 0, -130),
+		new THREE.Vector3(40, 0, -10),
+
+
+		new THREE.Vector3(40, 0, 25),
+		new THREE.Vector3(35, 0, 35),
+		new THREE.Vector3(30, 0, 45),
+		new THREE.Vector3(30, 0, 50),
+		new THREE.Vector3(20, 0, 55),
+		new THREE.Vector3(10, 0, 60),
+		new THREE.Vector3(-70, 0, 20),
+		new THREE.Vector3(-70, 0, 35),
+		new THREE.Vector3(-70, 0, 50),
+		new THREE.Vector3(-120, 0, -210),
+		new THREE.Vector3(-100, 0, -210),
+		new THREE.Vector3(-80, 0, -210),
+
+		new THREE.Vector3(105, 0, -265),
+		new THREE.Vector3(90, 0, -265),
+		new THREE.Vector3(75, 0, -265),
+		new THREE.Vector3(60, 0, -265),
+		new THREE.Vector3(45, 0, -265),
+		new THREE.Vector3(30, 0, -265),
+		new THREE.Vector3(15, 0, -265),
+		new THREE.Vector3(0, 0, -265),
+		new THREE.Vector3(-15, 0, -265),
+		new THREE.Vector3(-30, 0, -265),
+		new THREE.Vector3(-45, 0, -265),
+
 	],
 }
 
@@ -386,9 +428,27 @@ loader.load(audiencePath, function ( gltf ) {
 
 	const scaleRatio = 1;
 	audienceModel.scale.set(scaleRatio, scaleRatio, scaleRatio);
+	
+	const material = new THREE.MeshPhongMaterial( { color: 0x8d5524} );
 
+	audienceModel.traverse( function( child ) {
+    	if ( child.isMesh ) child.material = material;
+		} );
 
-	scene.add(audienceModel);
+	for (let i = 0; i<gameParams.stadiumPos.length; i++){
+		var curModel = audienceModel.clone();
+
+		curModel.position.set(
+			gameParams.stadiumPos[i].x,
+			gameParams.stadiumPos[i].y,
+			gameParams.stadiumPos[i].z
+		);
+
+		curModel.lookAt(new THREE.Vector3(0, 0, 0));
+
+		scene.add(curModel);
+	}
+
 }, undefined, function ( error ) {
 	console.error( error );
 });
@@ -405,11 +465,21 @@ loader.load(stadiumPath, function ( gltf ) {
 		if(n.material.map) n.material.map.anisotropy = 16; 
 	  }});
 
-	const scaleRatio = 0.3;
+	const scaleRatio = 0.2;
 	stadiumModel.scale.set(scaleRatio, scaleRatio, scaleRatio);
 
 	for (let i = 0; i<gameParams.stadiumPos.length; i++){
-		
+		var curModel = stadiumModel.clone();
+
+		curModel.position.set(
+			gameParams.stadiumPos[i].x,
+			gameParams.stadiumPos[i].y,
+			gameParams.stadiumPos[i].z
+		);
+
+		curModel.lookAt(new THREE.Vector3(0, 0, 0));
+
+		scene.add(curModel);
 	}
 
 }, undefined, function ( error ) {
